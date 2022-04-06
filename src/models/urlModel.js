@@ -16,7 +16,8 @@ const UrlSchema = new mongoose.Schema(
         },
         shortUrl:{
             type:String,
-            unique:true
+            unique:true,
+            trim:true
         }
 
     },
