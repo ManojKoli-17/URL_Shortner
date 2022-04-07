@@ -21,7 +21,7 @@ redisClient.on("connect", async function () {
 
 //Connection setup for redis
 
-const SET_ASYNC = promisify(redisClient.SET).bind(redisClient);
+const setex = promisify(redisClient.setex).bind(redisClient);
 const GET_ASYNC = promisify(redisClient.GET).bind(redisClient);
 
 
@@ -49,23 +49,18 @@ const createUrl = async function (req, res) {
         return;
     }
     const isUrlPresent = await urlModel.findOne({longUrl:longUrl})
-    if(isUrlPresent){
-        res.status(200).send({status:true, message:`  ${isUrlPresent.shortUrl}  ,this is the short url that already created for this Long URL`})
-        return
-
-        // res.status(200).send({status:true, message:"Short URL already created for this provide Long URL", data:isUrlPresent})
-        // return
-    }
 
       const urlCode = shortid.generate().toLowerCase()
       const shortUrl = baseUrl+ '/' +urlCode
       
-      let cachedLongUrlData = await GET_ASYNC(`${isUrlPresent}`)
-      if(cachedLongUrlData){
-          res.status(400).send({status:false, message:"Data is already stored in Cache Memory"})
+      let cachedLongUrlData = await redisClient.get(`${longUrl}`)
+      if(isUrlPresent && cachedLongUrlData){
+          console.log("Data already present in cache memory")
+          res.status(200).send({status:true, message:"Short URL already created for this provide Long URL", data:isUrlPresent})
+          return
       }
       else{
-          await SET_ASYNC(`${longUrl}`,JSON.stringify(isUrlPresent))
+          await setex(`${longUrl}`,300,JSON.stringify(isUrlPresent))
           urlCreated = await urlModel.create({ urlCode, longUrl, shortUrl })
           res.status(201).send({status:true, message:"Short Url created successfully!",data:urlCreated})
       }
@@ -95,7 +90,8 @@ const getUrl=async function(req,res){
         if(cahcedUrlData) {
             res.redirect(JSON.parse(cahcedUrlData).longUrl)
           }else{
-              await SET_ASYNC(`${req.params.urlCode}`, JSON.stringify(isUrlCodePresent))
+
+              await setex(`${req.params.urlCode}`,15, JSON.stringify(isUrlCodePresent))
               res.redirect(isUrlCodePresent.longUrl)
           }
     } catch (err) {
